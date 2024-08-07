@@ -3,9 +3,7 @@
 # From 2014-05-01 Onward (Past 2018 not public)
 # Latitude: N: 27.1897 to S: 24.4318
 # Longitude: E: -79.9938 to W: -83.1036
-# 11/23/2021 Project
 # Christopher Davis
-
 
 # Columns:
 # Time, Latitude, Longitude, Depth, Species Number, Scientific Name, Common Name, Length, Number Seen
@@ -16,6 +14,9 @@
 # Depth by Month for common species
 # Types of fish observed (Quantity Profiles)
 # Snapper Size by Month
+# Stacked Density Plot for Fish Sub Species by Depth
+# Tree map of fish by Type - Split into groups by quantity seen.
+# Network map of fish by fish seen at the same geographical location - stronger paths for more frequently seen together
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -23,29 +24,24 @@ import matplotlib.image as mpimg
 import numpy as np
 import pandas as pd
 import seaborn as sns
-
-Extension = '.csv'
-FileValues = ['1_100','101_200','201_500','501_837']
-def filestring(val):
-    FileString = 'CRCP_Reef_Fish_Surveys_Florida_'+FileValues[val]+Extension
-    return FileString
+import plotly.express as px
 
 def extractmonth(row):
     mystr = row['time']
     mystr.replace('-', ' ').split(' ')
     return int(mystr[5])*10+int(mystr[6])
 
-df1 = pd.read_csv(filestring(0))
-df2 = pd.read_csv(filestring(1))
-df3 = pd.read_csv(filestring(2))
-#df4 = pd.read_csv(filestring(3))
+df1 = pd.read_csv('CRCP_Reef_Fish_Surveys_Florida_'+'1_100'+'.csv')
+df2 = pd.read_csv('CRCP_Reef_Fish_Surveys_Florida_'+'101_200'+'.csv')
+df3 = pd.read_csv('CRCP_Reef_Fish_Surveys_Florida_'+'201_500'+'.csv')
+df4 = pd.read_csv('CRCP_Reef_Fish_Surveys_Florida_'+'501_837'+'.csv')
 
 # Concatenate files into one DF
-fishdf = pd.concat([df1,df2,df3])
+fishdf = pd.concat([df1,df2,df3,df4])
+fishdf['month'] = fishdf.apply(lambda row: extractmonth(row), axis=1)
 
 #CSpecies = fishdf['common_name'].unique()
 #print(len(CSpecies))
-
 
 # Species Specific Dataframe
 species = 'yellowtail snapper'
@@ -53,153 +49,110 @@ df_species = fishdf.query("common_name==@species")
 #print(df_species)
 #print(df_species.describe())
 
+# Count Rows of Fish Species (Total Observations not including number in observation)
+fishcounts = fishdf['common_name'].value_counts().rename_axis('common_name').reset_index(name='Counts').sort_values('common_name')
+fishlength = fishdf.groupby('common_name', as_index=False)['length_fish'].mean()
+fishdepth = fishdf.groupby('common_name', as_index=False)['depth'].mean()
+fishschool = fishdf.groupby('common_name', as_index=False)['number_seen'].mean()
 
-# Count Rows of Fish Species
-fishdfcounts = fishdf['common_name'].value_counts().rename_axis('common_name').reset_index(name='Counts')
+SummaryFishDF = fishcounts.merge(fishlength, how='left', on='common_name')
+SummaryFishDF = SummaryFishDF.merge(fishdepth, how='left', on='common_name')
+SummaryFishDF = SummaryFishDF.merge(fishschool, how='left', on='common_name')
 
-#df_smaller = fishdfcounts.query("Counts<=10 & Counts>=4")
+#df_smaller = fishcounts.query("Counts<=10 & Counts>=4")
 #print(df_smaller['common_name'].unique())
 
 snapperdf = fishdf[fishdf['common_name'].isin(['dog snapper', 'vermilion snapper','glasseye snapper','blackfin snapper','mahogany snapper','mutton snapper','lane snapper','gray snapper','yellowtail snapper'])]
-print(snapperdf)
 
-plotdepth = True
-if plotdepth == True:
-    plot1 = sns.kdeplot(
-       data=snapperdf, x="depth", hue="common_name",
-       fill=False, common_norm=False, palette="tab10",
-       alpha=.1, linewidth=6, bw_adjust=.5
-    )
-    plot1.set(yticklabels=[])
-    plot1.set(ylabel=None)
-    plot1.set(xlabel='Depth (m)')
-    plot1.tick_params(left=False)
-    plot1.set(xlim=(0, 35))
-    plot1.legend(title='Species', loc='upper right', labels=['Dog', 'Vermilion','Glasseye','Blackfin','Mahogany','Mutton','Lane','Gray','Yellowtail'], frameon=False)
-    plot1.figure.set_figheight(4)
-    plot1.figure.subplots_adjust(hspace = 0.2, wspace = 0.2)
-    plot1.figure.set_figwidth(24)
-    plot1.figure.savefig('Try1.png', transparent=True)
+# Figures
+fig1, (ax0, ax1) = plt.subplots(ncols = 1, nrows = 2, figsize = (14,8))
+fig2, (ax2, ax3) = plt.subplots(ncols = 1, nrows = 2, figsize = (14,8))
+fig3, ax4 = plt.subplots(ncols = 1, nrows = 1, figsize = (14,8))
 
-plotsize = False
-if plotsize == True:
-    
-    plot2 = sns.boxplot(
-       data=snapperdf, x="common_name", y="length_fish",
-       palette="rocket", linewidth=2
-    )
-    plot2.set(xticklabels=['Mutton','Blackfin','Gray','Dog','Mahogany','Lane','Yellowtail','Glasseye','Vermilion'])
-    plot2.set(xlabel=None)
-    plot2.set(ylabel='Length (cm)')
-    plot2.grid(axis='y')
-    plot2.set_axisbelow(True)
-    plot2.set(ylim=(0, 90))
-    plot2.figure.set_figheight(6)
-    plot2.figure.set_figwidth(10)
-    plot2.figure.savefig('Try2.png', transparent=True)
+# Depth Plot
+plot1 = sns.kdeplot(ax = ax0, data=snapperdf, x="depth", hue="common_name",fill=False, 
+    common_norm=False, palette="tab10",alpha=.1, linewidth=6, bw_adjust=.5)
+ax0.set_yticklabels([])
+ax0.set_ylabel(None)
+ax0.set_xlabel('Depth (m)')
+plot1.tick_params(left=False)
+ax0.set_xlim(0, 35)
+plot1.legend(title='Species', loc='upper right', labels=['Dog', 'Vermilion','Glasseye','Blackfin','Mahogany','Mutton','Lane','Gray','Yellowtail'], frameon=False)
 
+plot2 = sns.boxplot(ax = ax1, data=snapperdf, x="common_name", y="length_fish", hue = "common_name", 
+   palette="rocket", linewidth=2)
+ax1.set_xticks([0,1,2,3,4,5,6,7,8])
+ax1.set_xticklabels(['Mutton','Blackfin','Gray','Dog','Mahogany','Lane','Yellowtail','Glasseye','Vermilion'])
+ax1.set_ylabel('Length (cm)'); ax1.set_xlabel('Snapper Species Common Name')
+ax1.grid(axis='y')
+ax1.set_axisbelow(True)
+ax1.set_ylim(0, 90)
 
-snapperdf['month'] = snapperdf.apply (lambda row: extractmonth(row), axis=1)
-print(snapperdf)
+# Month Data for Select Species
 snapperdf2 = snapperdf[snapperdf['common_name'].isin(['mutton snapper','lane snapper','gray snapper','yellowtail snapper'])]
+plot3 = sns.boxplot(ax = ax2, data=snapperdf2, x="month", y="length_fish", hue = "common_name", palette="rocket", linewidth=2)
+ax2.set_ylabel('Length (cm)'); ax2.set_xlabel('month')
+ax2.grid(alpha = 0.5, axis='y')
+
+# plot4 = sns.kdeplot(ax = ax3, data=snapperdf, x="depth", y="length_fish", hue = "common_name", palette="rocket", levels=15)
+# ax3.set_ylabel('Length (cm)'); ax3.set_xlabel('Depth (m)')
+# ax3.grid(alpha = 0.5)
 
 
-plotmonths = False
-if plotmonths == True:
-    
-    plot3 = sns.boxplot(
-       data=snapperdf2, x="month", y="length_fish", hue = "common_name",
-       palette="rocket", linewidth=2
-    )
-    #plot3.set(xticklabels=['Mutton','Blackfin','Gray','Dog','Mahogany','Lane','Yellowtail','Glasseye','Vermilion'])
-    #plot3.set(xlabel=None)
-    #plot3.set(ylabel='Length (cm)')
-    plot3.grid(axis='y')
-    #plot3.set_axisbelow(True)
-    #plot3.set(ylim=(0, 90))
-    #plot3.figure.set_figheight(6)
-    #plot3.figure.set_figwidth(10)
-    #plot3.figure.savefig('Try3.png', transparent=True)
 
-plt.show()
+# Plotly Tree Maps by Fish Type & Depth of Observation #
 
-## Fish Sorted by Counts
-# Counts (1-3)
-['pigfish' 'honeycomb cowfish' 'reef silverside' 'marbled blenny'
- 'whitefin sharksucker' 'bluespotted cornetfish' 'sponge cardinalfish'
- 'greater soapfish' 'dusky jawfish' 'reef squirrelfish'
- 'southern stingray' 'tarpon' 'whitespotted soapfish' 'trunkfish'
- 'hybrid hamlet' 'spotted goby' 'Atlantic creolefish'
- 'sawcheek cardinalfish' 'bridle cardinalfish' 'tiger goby'
- 'orangespotted goby' 'banner goby' 'dwarf goatfish' 'papillose blenny'
- 'black jack' 'Spanish mackerel' 'Nassau grouper' 'redspotted hawkfish'
- 'secretary blenny' 'yellowfin grouper' 'gag' 'golden hamlet'
- 'spotted burrfish' 'banded jawfish' 'purplemouth moray' 'indigo hamlet'
- 'lancer dragonet' 'spotfin mojarra' 'mutton hamlet' 'black durgon'
- 'remora' 'green moray' 'checkered puffer' 'orangeside goby'
- 'redfin needlefish' 'lookdown' 'sharptail eel']
+# Assign groups for categorizing the fish together
+fishcountsgroup = []
+for fish in SummaryFishDF['common_name'].to_list():
+    if 'parrotfish' in fish: fishcountsgroup.append('PARROTFISH')
+    elif 'snapper' in fish or 'schoolmaster' in fish: fishcountsgroup.append('SNAPPER')
+    elif 'goby' in fish: fishcountsgroup.append('GOBY')
+    elif 'wrasse' in fish: fishcountsgroup.append('WRASSE')
+    elif 'grunt' in fish: fishcountsgroup.append('GRUNT')
+    elif 'porgy' in fish: fishcountsgroup.append('PORGY')
+    elif 'grouper' in fish: fishcountsgroup.append('GROUPER')
+    elif 'jack' in fish: fishcountsgroup.append('JACK')
+    elif 'sardine' in fish: fishcountsgroup.append('SARDINE')
+    elif 'triggerfish' in fish: fishcountsgroup.append('TRIGGERFISH')
+    elif 'hamlet' in fish: fishcountsgroup.append('HAMLET')
+    elif 'filefish' in fish: fishcountsgroup.append('FILEFISH')
+    elif 'razorfish' in fish: fishcountsgroup.append('RAZORFISH')
+    elif ' ray' in fish or 'stingray' in fish: fishcountsgroup.append('RAY')
+    elif 'butterflyfish' in fish: fishcountsgroup.append('BUTTERFLYFISH')
+    else: fishcountsgroup.append('OTHER')
 
-# Counts (4-10)
-['barred cardinalfish' 'yellow stingray' 'belted cardinalfish'
- 'balloonfish' 'southern sennet' 'spotted eagle ray' 'queen triggerfish'
- 'little tunny' 'painted wrasse' 'sharknose goby' 'sailfin blenny'
- 'goliath grouper' 'wrasse blenny' 'pinfish' 'jackknife-fish'
- 'scrawled cowfish' 'reef shark' 'hardhead silverside' 'dog snapper'
- 'roughhead blenny' 'spotted drum' 'orange filefish' 'common snook'
- 'coney' 'rock hind' 'sand diver' 'bonnetmouth' 'red hind'
- 'yellowline goby' 'tan hamlet' 'nurse shark' 'spotted trunkfish'
- 'planehead filefish' 'yellownose goby' 'yellowmouth grouper'
- 'dusky squirrelfish']
+# Split Dataframes by count observations. 
+SummaryFishDF['Category'] = fishcountsgroup
+SummaryFishDFBig = SummaryFishDF[SummaryFishDF['Counts'] > 50]
+SummaryFishDFSmall = SummaryFishDF[SummaryFishDF['Counts'] <= 50]
+# print(SummaryFishDFBig)
+# print(SummaryFishDFBig.describe())
+# print(SummaryFishDFSmall)
+# print(SummaryFishDFSmall.describe())
 
-# Counts (11-50)
-['blackbar soldierfish' 'greater amberjack' 'sheepshead porgy' 'cubbyu'
- 'cherubfish' 'margate' 'yellowfin mojarra' 'smooth trunkfish'
- 'bandtail puffer' 'glasseye snapper' 'blackfin snapper' 'almaco jack'
- 'glassy sweeper' 'littlehead porgy' 'Seminole goby' 'unicorn filefish'
- 'brown garden eel' 'sea bream' 'pallid goby' 'spotfin hogfish'
- 'knobbed porgy' 'crevalle jack' 'school bass' 'black grouper'
- 'sheepshead' 'yellowcheek wrasse' 'permit' 'flamefish' 'sand perch'
- 'Spanish sardine' 'Atlantic bumper' 'horse-eye jack'
- 'orangespotted filefish' 'yellowprow goby' 'townsend angelfish' 'scamp'
- 'dash goby' 'sand tilefish' 'redear sardine' 'black hamlet' 'bigeye'
- 'twospot cardinalfish' 'whitespotted filefish' 'hairy blenny'
- 'emerald parrotfish' 'pearly razorfish' 'sharksucker' 'vermilion snapper'
- 'rainbow wrasse' 'scaled sardine' 'African pompano' 'silver porgy'
- 'belted sandfish' 'jolthead porgy' 'banded rudderfish' 'slender filefish']
+fig3 = px.treemap(SummaryFishDFBig, path=['Category','common_name'], values='Counts', 
+    color='depth',color_continuous_scale='RdBu',color_continuous_midpoint=np.average(SummaryFishDF['depth']),
+    custom_data=['length_fish','depth','Counts','number_seen'], range_color=(0,25))
+fig3.update_traces(
+    hovertemplate='<b>%{label}</b><br>'+
+        'Observations = %{customdata[2]}<br>'+
+        'Average Depth (m)=%{customdata[1]:,.2f}<br>'+
+        'Average Length (cm)=%{customdata[0]:,.2f}<br>'+
+        'Average Group Size (cm)=%{customdata[3]:,.2f}'
+)
+fig3.show()
 
-# Counts (51-250)
-['mutton snapper' 'French angelfish' 'sailors choice' 'scrawled filefish'
- 'banded butterflyfish' 'chalk bass' 'squirrelfish' 'tobaccofish'
- 'seaweed blenny' 'rainbow parrotfish' 'boga' 'Atlantic spadefish'
- 'longspine squirrelfish' 'longfin damselfish' 'colon goby'
- 'great barracuda' 'round scad' 'high-hat' 'striped grunt'
- 'rosy razorfish' 'red grouper' 'ocean triggerfish' 'mahogany snapper'
- 'lantern bass' 'barred hamlet' 'midnight parrotfish' 'blue hamlet'
- 'hovering dartfish' 'rosy blenny' 'queen parrotfish'
- 'Atlantic trumpetfish' 'spottail pinfish' 'red lionfish' 'reef croaker'
- 'ballyhoo' 'Spanish grunt' 'black margate' 'rainbow runner'
- 'black sea bass' 'cero' 'mackerel scad']
+fig4 = px.treemap(SummaryFishDFSmall, path=['Category','common_name'], values='Counts', 
+    color='depth',color_continuous_scale='RdBu',color_continuous_midpoint=np.average(SummaryFishDF['depth']),
+    custom_data=['length_fish','depth','Counts','number_seen'], range_color=(0,25))
+fig4.update_traces(
+    hovertemplate='<b>%{label}</b><br>'+
+        'Observations = %{customdata[2]}<br>'+
+        'Average Depth (m)=%{customdata[1]:,.2f}<br>'+
+        'Average Length (cm)=%{customdata[0]:,.2f}'
+)
+fig4.show()
 
-# Counts (251-1000)
-['beaugregory' 'schoolmaster' 'green razorfish' 'rock beauty'
- 'bluelip parrotfish' 'lane snapper' 'harlequin bass' 'gray triggerfish'
- 'dusky damselfish' 'blue dartfish' 'graysby' 'blue runner'
- 'saddled blenny' 'cottonwick' 'blackear wrasse' 'yellowtail parrotfish'
- 'smallmouth grunt' 'yellow jack' 'caesar grunt' 'blue angelfish'
- 'redtail parrotfish' 'yellowtail reeffish' 'goldspot goby'
- 'Spanish hogfish' 'yellowtail damselfish' 'puddingwife' 'queen angelfish'
- 'blue parrotfish' 'bucktooth parrotfish' 'yellow goatfish']
 
-# Counts (1001+)
-['bluehead' 'bicolor damselfish' 'striped parrotfish' 'slippery dick'
- 'yellowtail snapper' 'redband parrotfish' 'yellowhead wrasse'
- 'white grunt' 'ocean surgeon' 'masked goby' 'cocoa damselfish'
- 'blue tang' 'clown wrasse' 'purple reeffish' 'French grunt'
- 'bridled goby' 'doctorfish' 'blue chromis' 'bar jack' 'tomtate'
- 'stoplight parrotfish' 'greenblotch parrotfish' 'gray snapper'
- 'sharpnose puffer' 'sergeant major' 'creole wrasse' 'bluestriped grunt'
- 'foureye butterflyfish' 'spotfin butterflyfish' 'brown chromis'
- 'porkfish' 'reef butterflyfish' 'yellowhead jawfish' 'saucereye porgy'
- 'neon goby' 'threespot damselfish' 'hogfish' 'princess parrotfish'
- 'sunshinefish' 'butter hamlet' 'Bermuda chub' 'spotted goatfish'
- 'gray angelfish']
+#plt.show()
