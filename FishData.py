@@ -15,7 +15,6 @@
 # Types of fish observed (Quantity Profiles)
 # Snapper Size by Month
 # Stacked Density Plot for Fish Sub Species by Depth
-# Tree map of fish by Type - Split into groups by quantity seen.
 # Network map of fish by fish seen at the same geographical location - stronger paths for more frequently seen together
 
 import matplotlib
@@ -62,43 +61,48 @@ SummaryFishDF = SummaryFishDF.merge(fishschool, how='left', on='common_name')
 #df_smaller = fishcounts.query("Counts<=10 & Counts>=4")
 #print(df_smaller['common_name'].unique())
 
-snapperdf = fishdf[fishdf['common_name'].isin(['dog snapper', 'vermilion snapper','glasseye snapper','blackfin snapper','mahogany snapper','mutton snapper','lane snapper','gray snapper','yellowtail snapper'])]
+snapperdf = fishdf[fishdf['common_name'].isin(['dog snapper','schoolmaster', 'vermilion snapper','glasseye snapper','blackfin snapper','mahogany snapper','mutton snapper','lane snapper','gray snapper','yellowtail snapper'])]
 
 # Figures
 fig1, (ax0, ax1) = plt.subplots(ncols = 1, nrows = 2, figsize = (14,8))
 fig2, (ax2, ax3) = plt.subplots(ncols = 1, nrows = 2, figsize = (14,8))
-fig3, ax4 = plt.subplots(ncols = 1, nrows = 1, figsize = (14,8))
+#fig3, (ax4, ax5) = plt.subplots(ncols = 1, nrows = 2, figsize = (14,8))
+#fig3.subplots_adjust(hspace = 0.5, wspace = 0.5, left = 0.05, right = 0.97, top = 0.95)
 
-# Depth Plot
-plot1 = sns.kdeplot(ax = ax0, data=snapperdf, x="depth", hue="common_name",fill=False, 
-    common_norm=False, palette="tab10",alpha=.1, linewidth=6, bw_adjust=.5)
-ax0.set_yticklabels([])
-ax0.set_ylabel(None)
-ax0.set_xlabel('Depth (m)')
-plot1.tick_params(left=False)
-ax0.set_xlim(0, 35)
-plot1.legend(title='Species', loc='upper right', labels=['Dog', 'Vermilion','Glasseye','Blackfin','Mahogany','Mutton','Lane','Gray','Yellowtail'], frameon=False)
+# Snapper Depth #
 
-plot2 = sns.boxplot(ax = ax1, data=snapperdf, x="common_name", y="length_fish", hue = "common_name", 
-   palette="rocket", linewidth=2)
-ax1.set_xticks([0,1,2,3,4,5,6,7,8])
-ax1.set_xticklabels(['Mutton','Blackfin','Gray','Dog','Mahogany','Lane','Yellowtail','Glasseye','Vermilion'])
+plot1 = sns.violinplot(data=snapperdf, x="common_name", y="depth", hue="common_name", inner="quart", 
+    palette="cubehelix", bw_adjust = 0.4, alpha=0.75, linewidth=2, ax = ax0)
+ax0.set_xticks([0,1,2,3,4,5,6,7,8,9])
+ax0.set_xticklabels(['Mutton','Schoolmaster','Blackfin','Gray','Dog','Mahogany','Lane','Yellowtail','Glasseye','Vermilion'])
+ax0.grid(alpha = 0.3, axis='y')
+ax0.set_ylabel('Depth (m)'); ax0.set_xlabel('Snapper Species Common Name')
+ax0.invert_yaxis()
+
+# Snapper Length #
+
+plot2 = sns.violinplot(ax = ax1, data=snapperdf, x="common_name", y="length_fish", hue = "common_name", inner="quart", 
+   palette="cubehelix", bw_adjust = 0.4, alpha=0.75, linewidth=2)
+ax1.set_xticks([0,1,2,3,4,5,6,7,8,9])
+ax1.set_xticklabels(['Mutton','Schoolmaster','Blackfin','Gray','Dog','Mahogany','Lane','Yellowtail','Glasseye','Vermilion'])
 ax1.set_ylabel('Length (cm)'); ax1.set_xlabel('Snapper Species Common Name')
-ax1.grid(axis='y')
+ax1.grid(alpha = 0.3, axis='y')
 ax1.set_axisbelow(True)
 ax1.set_ylim(0, 90)
 
 # Month Data for Select Species
-snapperdf2 = snapperdf[snapperdf['common_name'].isin(['mutton snapper','lane snapper','gray snapper','yellowtail snapper'])]
-plot3 = sns.boxplot(ax = ax2, data=snapperdf2, x="month", y="length_fish", hue = "common_name", palette="rocket", linewidth=2)
+
+snapperdf2 = snapperdf[snapperdf['common_name'].isin(['gray snapper','yellowtail snapper','schoolmaster'])]
+plot3 = sns.scatterplot(ax = ax2, data=snapperdf2, x="month", y="length_fish", hue = "common_name",
+    palette="flare")
 ax2.set_ylabel('Length (cm)'); ax2.set_xlabel('month')
 ax2.grid(alpha = 0.5, axis='y')
 
-# plot4 = sns.kdeplot(ax = ax3, data=snapperdf, x="depth", y="length_fish", hue = "common_name", palette="rocket", levels=15)
-# ax3.set_ylabel('Length (cm)'); ax3.set_xlabel('Depth (m)')
-# ax3.grid(alpha = 0.5)
+plot4 = sns.displot(data=snapperdf,x="length_fish", hue="common_name", kind="kde", height=6, palette="cubehelix", 
+    multiple="fill", clip=(0, None))
 
-
+plot5 = sns.displot(data=snapperdf, x="depth", hue="common_name", kind="kde", height=6, palette="cubehelix", 
+    multiple="fill", clip=(0, None))
 
 # Plotly Tree Maps by Fish Type & Depth of Observation #
 
@@ -141,7 +145,7 @@ fig3.update_traces(
         'Average Length (cm)=%{customdata[0]:,.2f}<br>'+
         'Average Group Size (cm)=%{customdata[3]:,.2f}'
 )
-fig3.show()
+#fig3.show()
 
 fig4 = px.treemap(SummaryFishDFSmall, path=['Category','common_name'], values='Counts', 
     color='depth',color_continuous_scale='RdBu',color_continuous_midpoint=np.average(SummaryFishDF['depth']),
@@ -152,7 +156,7 @@ fig4.update_traces(
         'Average Depth (m)=%{customdata[1]:,.2f}<br>'+
         'Average Length (cm)=%{customdata[0]:,.2f}'
 )
-fig4.show()
+#fig4.show()
 
 
-#plt.show()
+plt.show()
